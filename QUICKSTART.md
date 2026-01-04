@@ -15,7 +15,7 @@ Get up and running with the OpenCode Browser MCP Plugin in 5 minutes.
 3. Add the extension to your browser
 4. Pin the extension to your browser toolbar
 
-## Step 2: Install Plugin & Configure OpenCode (1 minute)
+## Step 2: Configure OpenCode (1 minute)
 
 Create or edit your `opencode.json` file in your project directory:
 
@@ -35,7 +35,11 @@ cat > opencode.json << 'EOF'
 EOF
 ```
 
-That's it! OpenCode will automatically download and install the plugin from npm.
+**What this does:**
+- `"plugin": ["opencode-browser"]` - Installs the plugin from npm (automatic)
+- `"mcp": { "browsermcp": ... }` - Configures Browser MCP server (required for browser control)
+
+Both are needed! The plugin enhances the MCP tools, but the MCP server does the actual browser automation.
 
 ### Alternative: Local Installation (for development)
 

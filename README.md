@@ -26,28 +26,9 @@ Before using this plugin, you need:
 2. Install the Browser MCP extension for your browser (Chrome or Edge)
 3. Follow the extension setup instructions
 
-### Step 2: Configure Browser MCP Server in OpenCode
+### Step 2: Configure OpenCode
 
-Add the Browser MCP server configuration to your `opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "browsermcp": {
-      "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
-      "enabled": true
-    }
-  }
-}
-```
-
-### Step 3: Install the Plugin
-
-#### Recommended: Install from npm
-
-Simply add the plugin to your `opencode.json`:
+Add this configuration to your `opencode.json`:
 
 ```json
 {
@@ -63,7 +44,11 @@ Simply add the plugin to your `opencode.json`:
 }
 ```
 
-OpenCode will automatically download and install the plugin from npm when it starts. No manual file copying required!
+This configuration does two things:
+1. **Installs the plugin** - OpenCode automatically downloads `opencode-browser` from npm
+2. **Configures Browser MCP** - Sets up the MCP server that actually controls the browser
+
+That's it! No manual file copying required. OpenCode handles everything automatically.
 
 #### Alternative: Install Locally (for development/testing)
 

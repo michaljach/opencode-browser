@@ -58,7 +58,7 @@ Browser MCP for powerful browser automation capabilities.
         Click "Install Extension"
         Add to Chrome or Edge
     
-    2️⃣  Add Plugin to OpenCode Config
+    2️⃣  Configure OpenCode
         Create or edit opencode.json:
         
         {
@@ -73,8 +73,11 @@ Browser MCP for powerful browser automation capabilities.
           }
         }
         
-        That's it! OpenCode will auto-install the plugin from npm.
-        No manual file copying needed!
+        What this does:
+        • Plugin line: Auto-installs opencode-browser from npm
+        • MCP section: Configures Browser MCP server (required!)
+        
+        Both are needed - plugin enhances MCP, MCP controls browser.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

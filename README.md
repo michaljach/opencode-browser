@@ -28,6 +28,13 @@ Before using this plugin, you need:
 
 ### Step 2: Configure OpenCode
 
+Create or update your `opencode.json` configuration file. You can create this file in one of two locations:
+
+- **Global configuration** (applies to all projects): `~/.config/opencode/opencode.json`
+- **Project-specific configuration** (applies to current project only): `./opencode.json` (in your project root)
+
+Learn more about OpenCode configuration at [https://opencode.ai/docs/config](https://opencode.ai/docs/config)
+
 Add this configuration to your `opencode.json`:
 
 ```json

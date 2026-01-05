@@ -2,6 +2,10 @@
 
 An OpenCode plugin that integrates [Browser MCP](https://browsermcp.io) to enable browser automation capabilities within OpenCode. This plugin allows the AI to control a browser, navigate websites, fill forms, click elements, and perform other browser automation tasks.
 
+## Demo
+
+https://github.com/michaljach/opencode-browser/assets/demo.mp4
+
 ## Features
 
 - Full browser automation support through Browser MCP

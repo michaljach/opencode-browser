@@ -4,9 +4,7 @@ An OpenCode plugin that integrates [Browser MCP](https://browsermcp.io) to enabl
 
 ## Demo
 
-<video src="https://github.com/michaljach/opencode-browser/raw/main/assets/demo.mp4" controls width="100%">
-  Your browser does not support the video tag. <a href="https://github.com/michaljach/opencode-browser/raw/main/assets/demo.mp4">Download the demo video</a> instead.
-</video>
+![Demo](assets/demo.gif)
 
 ## Features
 

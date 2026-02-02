@@ -71,13 +71,13 @@ If you want to modify the plugin or test changes:
 **For global installation:**
 ```bash
 mkdir -p ~/.config/opencode/plugin
-cp index.ts ~/.config/opencode/plugin/browser-mcp.ts
+cp src/index.ts ~/.config/opencode/plugin/browser-mcp.ts
 ```
 
 **For project-specific installation:**
 ```bash
 mkdir -p .opencode/plugin
-cp index.ts .opencode/plugin/browser-mcp.ts
+cp src/index.ts .opencode/plugin/browser-mcp.ts
 ```
 
 The plugin will be automatically loaded on OpenCode startup.
@@ -316,7 +316,7 @@ opencode --verbose
 If you want to modify the plugin:
 
 1. Clone the repository
-2. Make your changes to `index.ts`
+2. Make your changes to `src/index.ts`
 3. Test locally by copying to your OpenCode plugin directory
 4. Submit a PR if you'd like to contribute!
 

@@ -14,6 +14,6 @@
     "declarationMap": true,
     "outDir": "./dist"
   },
-  "include": ["index.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

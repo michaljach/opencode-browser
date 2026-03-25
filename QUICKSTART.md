@@ -17,7 +17,21 @@ Get up and running with the OpenCode Browser MCP Plugin in 5 minutes.
 
 ## Step 2: Configure OpenCode (1 minute)
 
-Create or edit your `opencode.json` file in your project directory:
+Run the setup helper in your project directory:
+
+```bash
+npx opencode-browser init
+```
+
+This creates or updates `./opencode.json` with the plugin and Browser MCP server entries.
+
+Use the global config instead if you want it available everywhere:
+
+```bash
+npx opencode-browser init --global
+```
+
+If you prefer to edit the file manually, create or update `opencode.json` like this:
 
 ```bash
 cat > opencode.json << 'EOF'
@@ -73,7 +87,7 @@ Navigate to https://github.com and tell me what the featured repository is
 
 - [ ] Browser MCP extension is installed and visible in browser toolbar
 - [ ] `opencode.json` contains the MCP configuration
-- [ ] Plugin file is in the correct directory
+- [ ] `plugin` includes `opencode-browser`
 - [ ] OpenCode starts without errors
 - [ ] Browser automation commands work
 

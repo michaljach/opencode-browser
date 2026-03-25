@@ -4,6 +4,9 @@
   "description": "OpenCode plugin that integrates Browser MCP for browser automation",
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "opencode-browser": "bin/opencode-browser.js"
+  },
   "keywords": [
     "opencode",
     "opencode-plugin",
@@ -31,6 +34,7 @@
     "url": "https://github.com/michaljach/opencode-browser/issues"
   },
   "files": [
+    "bin/",
     "src/",
     "README.md",
     "LICENSE"

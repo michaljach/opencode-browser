@@ -35,6 +35,20 @@ Before using this plugin, you need:
 
 ### Step 2: Configure OpenCode
 
+Fastest path:
+
+```bash
+npx opencode-browser init
+```
+
+This creates or updates `./opencode.json` with the required `plugin` and `mcp.browsermcp` entries while preserving any unrelated config you already have.
+
+For a global setup instead of a project-local one:
+
+```bash
+npx opencode-browser init --global
+```
+
 Create or update your `opencode.json` configuration file. You can create this file in one of two locations:
 
 - **Global configuration** (applies to all projects): `~/.config/opencode/opencode.json`
@@ -63,6 +77,12 @@ This configuration does two things:
 2. **Configures Browser MCP** - Sets up the MCP server that actually controls the browser
 
 That's it! No manual file copying required. OpenCode handles everything automatically.
+
+If you prefer to preview the generated config without writing it yet:
+
+```bash
+npx opencode-browser init --print
+```
 
 #### Alternative: Install Locally (for development/testing)
 
@@ -361,4 +381,3 @@ For issues and questions:
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes in each version.
-

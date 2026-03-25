@@ -1,288 +1,194 @@
 import type { Plugin } from "@opencode-ai/plugin"
 
-/**
- * OpenCode Plugin for Browser MCP Integration
- * 
- * This plugin integrates Browser MCP (https://browsermcp.io) to enable browser automation
- * capabilities within OpenCode. It allows the AI to control a browser, navigate websites,
- * fill forms, click elements, and perform other browser automation tasks.
- * 
- * Setup:
- * 1. Install the Browser MCP extension in your browser
- * 2. Configure the MCP server in your opencode.json (see README.md)
- * 3. Enable this plugin
- * 
- * Features:
- * - Automatic reconnection when browser extension is disabled/enabled
- * - Exponential backoff retry logic for failed connections
- * - Connection health monitoring
- * - User notifications for connection status changes
- * 
- * The plugin automatically detects browser-related requests and provides context hints
- * to help the AI use Browser MCP tools effectively.
- */
-
 interface ConnectionState {
   isConnected: boolean
-  lastError?: Error
-  retryCount: number
-  lastAttempt?: number
-  healthCheckInterval?: NodeJS.Timeout
+  lastError?: string
+  failureCount: number
 }
 
-interface RetryConfig {
-  maxRetries: number
-  initialDelay: number
-  maxDelay: number
-  backoffMultiplier: number
+const BROWSER_TOOL_PREFIX = "browsermcp_"
+
+const browserSpeedGuidance = `When using Browser MCP, optimize for speed:
+- Prefer direct URL navigation over click-through flows when the destination is known.
+- Reuse the current tab and page state instead of repeating navigation.
+- Minimize snapshots, screenshots, and waits; use them only after a page change or when visual confirmation is required.
+- Prefer targeted extraction or direct actions over broad inspection.
+- Finish the task in the fewest browser actions that still preserve correctness.`
+
+const browserCompactionContext = `## Browser Automation Context
+
+Browser MCP was used in this session. When resuming:
+- Assume the current browser tab may still be useful.
+- Check browser state once, then reuse it instead of repeating navigation.
+- Prefer direct navigation, extraction, and targeted actions over repeated snapshots or screenshots.
+- Use waits only when the page is still loading or an interaction has not settled yet.`
+
+const browserToolHints: Record<string, string> = {
+  browsermcp_browser_navigate:
+    "Prefer this when you already know the destination URL instead of clicking through intermediate pages.",
+  browsermcp_browser_snapshot:
+    "This is relatively expensive. Reuse the latest snapshot unless the page changed or you need fresh element references.",
+  browsermcp_browser_screenshot:
+    "Use only when the user needs visual confirmation. Prefer extraction or targeted checks for faster workflows.",
+  browsermcp_browser_wait:
+    "Use only when content is still loading or an interaction has not settled. Avoid fixed waits when the next action can validate readiness.",
 }
 
-export const BrowserMCPPlugin: Plugin = async (ctx) => {
-  const { client, project } = ctx
-  
-  // Track if we've informed the user about browser automation capabilities
-  let browserCapabilitiesShown = false
-  
-  // Connection state management
-  const connectionState: ConnectionState = {
-    isConnected: true,
-    retryCount: 0
+const connectionErrorPatterns = [
+  /econnrefused/i,
+  /connection refused/i,
+  /failed to connect/i,
+  /could not connect/i,
+  /browser\s*mcp.*(?:disconnected|unavailable|not connected)/i,
+  /extension.*(?:disabled|disconnected|not connected|unavailable)/i,
+  /websocket.*(?:closed|failed)/i,
+  /timed out while connecting/i,
+]
+
+const isBrowserTool = (toolID: string): boolean => toolID.startsWith(BROWSER_TOOL_PREFIX)
+
+const appendSection = (base: string, section: string): string => {
+  const trimmedSection = section.trim()
+
+  if (!trimmedSection) {
+    return base
   }
-  
-  // Retry configuration
-  const retryConfig: RetryConfig = {
-    maxRetries: 5,
-    initialDelay: 1000, // 1 second
-    maxDelay: 30000, // 30 seconds
-    backoffMultiplier: 2
+
+  if (!base) {
+    return trimmedSection
   }
-  
-  /**
-   * Calculate delay for exponential backoff
-   */
-  const getRetryDelay = (retryCount: number): number => {
-    const delay = Math.min(
-      retryConfig.initialDelay * Math.pow(retryConfig.backoffMultiplier, retryCount),
-      retryConfig.maxDelay
-    )
-    return delay
+
+  if (base.includes(trimmedSection)) {
+    return base
   }
-  
-  /**
-   * Check if an error indicates a connection problem
-   */
-  const isConnectionError = (error: any): boolean => {
-    if (!error) return false
-    
-    const errorMessage = typeof error === 'string' ? error : error.message || ''
-    const errorString = errorMessage.toLowerCase()
-    
-    return (
-      errorString.includes('connection') ||
-      errorString.includes('econnrefused') ||
-      errorString.includes('enotfound') ||
-      errorString.includes('timeout') ||
-      errorString.includes('network') ||
-      errorString.includes('disconnected') ||
-      errorString.includes('unavailable')
-    )
+
+  return `${base.trimEnd()}\n\n${trimmedSection}`
+}
+
+const stringifyOutput = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value
   }
-  
-  /**
-   * Attempt to reconnect to Browser MCP
-   */
-  const attemptReconnection = async (toolName: string): Promise<boolean> => {
-    if (connectionState.retryCount >= retryConfig.maxRetries) {
-      return false
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+const isConnectionError = (value: unknown): boolean => {
+  const errorString = stringifyOutput(value)
+
+  return connectionErrorPatterns.some((pattern) => pattern.test(errorString))
+}
+
+const getToolHint = (toolID: string): string => {
+  if (browserToolHints[toolID]) {
+    return browserToolHints[toolID]
+  }
+
+  return "Prefer the smallest action that advances the task, and avoid redundant browser calls when the current page state is already known."
+}
+
+export const BrowserMCPPlugin: Plugin = async () => {
+  const browserSessions = new Set<string>()
+  const connectionStates = new Map<string, ConnectionState>()
+
+  const getConnectionState = (sessionID: string): ConnectionState => {
+    const existingState = connectionStates.get(sessionID)
+
+    if (existingState) {
+      return existingState
     }
-    
-    const delay = getRetryDelay(connectionState.retryCount)
-    connectionState.retryCount++
-    connectionState.lastAttempt = Date.now()
-    
-    await new Promise(resolve => setTimeout(resolve, delay))
-    
-    try {
-      // Try to call a lightweight browser tool to test connection
-      // This will be caught by the tool.execute hooks
-      return true
-    } catch (error) {
-      return false
+
+    const nextState: ConnectionState = {
+      isConnected: true,
+      failureCount: 0,
     }
+
+    connectionStates.set(sessionID, nextState)
+    return nextState
   }
-  
-  /**
-   * Reset connection state on successful connection
-   */
-  const resetConnectionState = () => {
+
+  const markConnectionFailed = (sessionID: string, error: unknown) => {
+    const connectionState = getConnectionState(sessionID)
+    connectionState.isConnected = false
+    connectionState.failureCount += 1
+    connectionState.lastError = stringifyOutput(error)
+  }
+
+  const resetConnectionState = (sessionID: string) => {
+    const connectionState = getConnectionState(sessionID)
     connectionState.isConnected = true
-    connectionState.retryCount = 0
+    connectionState.failureCount = 0
     connectionState.lastError = undefined
   }
-  
-  /**
-   * Mark connection as failed
-   */
-  const markConnectionFailed = (error: Error) => {
-    connectionState.isConnected = false
-    connectionState.lastError = error
-  }
-  
-  /**
-   * Start periodic health check
-   */
-  const startHealthCheck = () => {
-    // Check connection health every 30 seconds when disconnected
-    connectionState.healthCheckInterval = setInterval(() => {
-      if (!connectionState.isConnected) {
-        // Health check will be triggered on next tool use
-      }
-    }, 30000)
-  }
-  
-  /**
-   * Stop health check
-   */
-  const stopHealthCheck = () => {
-    if (connectionState.healthCheckInterval) {
-      clearInterval(connectionState.healthCheckInterval)
-      connectionState.healthCheckInterval = undefined
-    }
-  }
-  
-  return {
-    /**
-     * Hook into session creation to inject browser automation context
-     */
-    "session.created": async ({ session }) => {
-      // Session created - ready for browser automation
-      startHealthCheck()
-    },
-    
-    /**
-     * Hook before tool execution to provide browser-specific guidance
-     */
-    "tool.execute.before": async (input, output) => {
-      // Detect if a browser-related MCP tool is being called
-      if (input.tool.startsWith("browsermcp_")) {
-        // Check if we need to attempt reconnection
-        if (!connectionState.isConnected) {
-          // Notify about reconnection attempt
-          output.messages = output.messages || []
-          output.messages.push({
-            role: "user",
-            content: `[Browser MCP] Connection lost. Attempting to reconnect (attempt ${connectionState.retryCount + 1}/${retryConfig.maxRetries})...`
-          })
-        }
-      }
-    },
-    
-    /**
-     * Hook after tool execution to handle browser automation results
-     */
-    "tool.execute.after": async (input, output) => {
-      if (input.tool.startsWith("browsermcp_")) {
-        // Check if the tool execution failed due to connection issues
-        const hasError = output.isError || (output.content && typeof output.content === 'string' && output.content.includes('error'))
-        
-        if (hasError && output.content) {
-          const errorContent = typeof output.content === 'string' ? output.content : JSON.stringify(output.content)
-          
-          if (isConnectionError(errorContent)) {
-            markConnectionFailed(new Error(errorContent))
-            
-            // Attempt reconnection
-            const reconnected = await attemptReconnection(input.tool)
-            
-            if (reconnected) {
-              resetConnectionState()
-              // Add success message
-              output.messages = output.messages || []
-              output.messages.push({
-                role: "assistant",
-                content: "[Browser MCP] Successfully reconnected to browser extension. You can continue with browser automation."
-              })
-            } else if (connectionState.retryCount >= retryConfig.maxRetries) {
-              // Max retries reached
-              output.messages = output.messages || []
-              output.messages.push({
-                role: "assistant",
-                content: `[Browser MCP] Failed to reconnect after ${retryConfig.maxRetries} attempts. Please check that:\n1. The Browser MCP extension is enabled in Chrome\n2. The browser is running\n3. The extension has proper permissions\n\nYou may need to restart OpenCode if the issue persists.`
-              })
-            }
-          }
-        } else {
-          // Successful execution - ensure we're marked as connected
-          if (!connectionState.isConnected) {
-            resetConnectionState()
-            output.messages = output.messages || []
-            output.messages.push({
-              role: "assistant",
-              content: "[Browser MCP] Connection restored successfully."
-            })
-          }
-        }
-      }
-    },
-    
-    /**
-     * Hook to add browser automation context during session compaction
-     * This helps preserve browser-related context across long sessions
-     */
-    "experimental.session.compacting": async (input, output) => {
-      // Check if any browser automation was performed in this session
-      // Guard against input.messages being undefined
-      const hasBrowserTools = input.messages?.some(msg => 
-        msg.content?.some(part => 
-          part.type === "tool_use" && part.name?.startsWith("browsermcp_")
-        )
-      )
-      
-      if (hasBrowserTools) {
-        output.context.push(`## Browser Automation Context
 
-The Browser MCP integration has been used in this session. When resuming:
-- Browser state may have changed since last interaction
-- Browser tabs opened during automation may still be active
-- Consider checking current browser state before making assumptions
-- Use Browser MCP tools to verify page state when needed`)
+  return {
+    "experimental.chat.system.transform": async (_input, output) => {
+      if (!output.system.includes(browserSpeedGuidance)) {
+        output.system.push(browserSpeedGuidance)
       }
     },
-    
-    /**
-     * Hook into TUI toast notifications to show browser-specific tips
-     */
-    "tui.toast.show": async (input, output) => {
-      // You could customize toast messages related to browser automation here
+
+    "tool.definition": async (input, output) => {
+      if (!isBrowserTool(input.toolID)) {
+        return
+      }
+
+      output.description = appendSection(output.description, `Performance: ${getToolHint(input.toolID)}`)
     },
-    
-    /**
-     * Event handler for various OpenCode events
-     */
+
+    "tool.execute.after": async (input, output) => {
+      if (!isBrowserTool(input.tool)) {
+        return
+      }
+
+      browserSessions.add(input.sessionID)
+      const connectionState = getConnectionState(input.sessionID)
+
+      if (isConnectionError(output.output)) {
+        markConnectionFailed(input.sessionID, output.output)
+
+        const connectionHint = connectionState.failureCount === 1
+          ? "[Browser MCP] The browser connection looks unavailable. Re-enable the Browser MCP extension or browser, then retry. The plugin skips delayed backoff so the next attempt can run immediately."
+          : `[Browser MCP] Browser connection is still unavailable (failure ${connectionState.failureCount}). Retry as soon as the extension is ready.`
+
+        output.output = appendSection(output.output, connectionHint)
+        return
+      }
+
+      if (!connectionState.isConnected) {
+        resetConnectionState(input.sessionID)
+        output.output = appendSection(
+          output.output,
+          "[Browser MCP] Connection restored. Continuing without extra retry delay.",
+        )
+      }
+    },
+
+    "experimental.session.compacting": async (input, output) => {
+      if (browserSessions.has(input.sessionID)) {
+        output.context.push(browserCompactionContext)
+      }
+    },
+
     event: async ({ event }) => {
-      // Handle session idle - could be used to close browser tabs
-      if (event.type === "session.idle") {
-        // Session is idle
+      const sessionID = typeof (event as { sessionID?: unknown }).sessionID === "string"
+        ? (event as { sessionID: string }).sessionID
+        : undefined
+
+      if (!sessionID) {
+        return
       }
-      
-      // Handle session errors - could help debug browser automation issues
-      if (event.type === "session.error") {
-        // Check if it's a browser-related error
-        const error = (event as any).error
-        if (error && isConnectionError(error)) {
-          markConnectionFailed(error)
-        }
+
+      if (event.type === "session.deleted") {
+        browserSessions.delete(sessionID)
+        connectionStates.delete(sessionID)
       }
-      
-      // Clean up on session end
-      if (event.type === "session.end") {
-        stopHealthCheck()
-      }
-    }
+    },
   }
 }
 
-/**
- * Default export for the plugin
- */
 export default BrowserMCPPlugin

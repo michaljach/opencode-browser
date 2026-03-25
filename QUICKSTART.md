@@ -61,12 +61,12 @@ If you're testing local changes to the plugin:
 
 ```bash
 # Project-specific
-mkdir -p .opencode/plugin
-cp index.ts .opencode/plugin/browser-mcp.ts
+mkdir -p .opencode/plugins
+cp src/index.ts .opencode/plugins/browser-mcp.ts
 
 # Or global
-mkdir -p ~/.config/opencode/plugin
-cp index.ts ~/.config/opencode/plugin/browser-mcp.ts
+mkdir -p ~/.config/opencode/plugins
+cp src/index.ts ~/.config/opencode/plugins/browser-mcp.ts
 ```
 
 ## Step 3: Test It Out (1 minute)
@@ -79,6 +79,12 @@ opencode
 2. Try a simple browser automation command:
 ```
 Navigate to https://github.com and tell me what the featured repository is
+```
+
+For faster browser runs, prefer prompts like:
+
+```
+Navigate directly to https://news.ycombinator.com and extract the titles of the top 5 stories without taking screenshots.
 ```
 
 3. Watch as OpenCode opens your browser and completes the task!
@@ -102,9 +108,9 @@ npx -y @browsermcp/mcp@latest --version
 ### "Plugin not loaded"
 ```bash
 # Check if plugin file exists
-ls -la .opencode/plugin/browser-mcp.ts
+ls -la .opencode/plugins/browser-mcp.ts
 # or for global
-ls -la ~/.config/opencode/plugin/browser-mcp.ts
+ls -la ~/.config/opencode/plugins/browser-mcp.ts
 ```
 
 ### "Browser doesn't respond"

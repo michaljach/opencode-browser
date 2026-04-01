@@ -23,16 +23,24 @@ Browser MCP was used in this session. When resuming:
 - Prefer direct navigation, extraction, and targeted actions over repeated snapshots or screenshots.
 - Use waits only when the page is still loading or an interaction has not settled yet.`
 
-const browserToolHints: Record<string, string> = {
-  browsermcp_browser_navigate:
-    "Prefer this when you already know the destination URL instead of clicking through intermediate pages.",
-  browsermcp_browser_snapshot:
-    "This is relatively expensive. Reuse the latest snapshot unless the page changed or you need fresh element references.",
-  browsermcp_browser_screenshot:
-    "Use only when the user needs visual confirmation. Prefer extraction or targeted checks for faster workflows.",
-  browsermcp_browser_wait:
-    "Use only when content is still loading or an interaction has not settled. Avoid fixed waits when the next action can validate readiness.",
-}
+const browserToolHints = [
+  {
+    suffixes: ["_browser_navigate", "_navigate"],
+    hint: "Prefer this when you already know the destination URL instead of clicking through intermediate pages.",
+  },
+  {
+    suffixes: ["_browser_snapshot", "_snapshot"],
+    hint: "This is relatively expensive. Reuse the latest snapshot unless the page changed or you need fresh element references.",
+  },
+  {
+    suffixes: ["_browser_screenshot", "_screenshot"],
+    hint: "Use only when the user needs visual confirmation. Prefer extraction or targeted checks for faster workflows.",
+  },
+  {
+    suffixes: ["_browser_wait", "_wait"],
+    hint: "Use only when content is still loading or an interaction has not settled. Avoid fixed waits when the next action can validate readiness.",
+  },
+] as const
 
 const connectionErrorPatterns = [
   /econnrefused/i,
@@ -46,6 +54,10 @@ const connectionErrorPatterns = [
 ]
 
 const isBrowserTool = (toolID: string): boolean => toolID.startsWith(BROWSER_TOOL_PREFIX)
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
 
 const appendSection = (base: string, section: string): string => {
   const trimmedSection = section.trim()
@@ -65,6 +77,27 @@ const appendSection = (base: string, section: string): string => {
   return `${base.trimEnd()}\n\n${trimmedSection}`
 }
 
+const appendToolOutputSection = (value: unknown, section: string): unknown => {
+  if (typeof value === "string") {
+    return appendSection(value, section)
+  }
+
+  if (!isRecord(value)) {
+    return value
+  }
+
+  for (const field of ["error", "message", "details"] as const) {
+    if (typeof value[field] === "string") {
+      return {
+        ...value,
+        [field]: appendSection(value[field], section),
+      }
+    }
+  }
+
+  return value
+}
+
 const stringifyOutput = (value: unknown): string => {
   if (typeof value === "string") {
     return value
@@ -77,15 +110,63 @@ const stringifyOutput = (value: unknown): string => {
   }
 }
 
+const getFailureFlag = (value: Record<string, unknown>): boolean => {
+  if (value.success === false || value.ok === false) {
+    return true
+  }
+
+  if (value.isError === true || value.error === true) {
+    return true
+  }
+
+  return false
+}
+
+const getConnectionErrorText = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    return value
+  }
+
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  if (typeof value.error === "string") {
+    return value.error
+  }
+
+  if (typeof value.stderr === "string") {
+    return value.stderr
+  }
+
+  if (!getFailureFlag(value)) {
+    return undefined
+  }
+
+  for (const field of ["message", "details"] as const) {
+    if (typeof value[field] === "string") {
+      return value[field]
+    }
+  }
+
+  return undefined
+}
+
 const isConnectionError = (value: unknown): boolean => {
-  const errorString = stringifyOutput(value)
+  const errorString = getConnectionErrorText(value)
+
+  if (!errorString) {
+    return false
+  }
 
   return connectionErrorPatterns.some((pattern) => pattern.test(errorString))
 }
 
 const getToolHint = (toolID: string): string => {
-  if (browserToolHints[toolID]) {
-    return browserToolHints[toolID]
+  for (const { suffixes, hint } of browserToolHints) {
+    if (suffixes.some((suffix) => toolID.endsWith(suffix))) {
+      return hint
+    }
   }
 
   return "Prefer the smallest action that advances the task, and avoid redundant browser calls when the current page state is already known."
@@ -155,13 +236,13 @@ export const BrowserMCPPlugin: Plugin = async () => {
           ? "[Browser MCP] The browser connection looks unavailable. Re-enable the Browser MCP extension or browser, then retry. The plugin skips delayed backoff so the next attempt can run immediately."
           : `[Browser MCP] Browser connection is still unavailable (failure ${connectionState.failureCount}). Retry as soon as the extension is ready.`
 
-        output.output = appendSection(output.output, connectionHint)
+        output.output = appendToolOutputSection(output.output, connectionHint)
         return
       }
 
       if (!connectionState.isConnected) {
         resetConnectionState(input.sessionID)
-        output.output = appendSection(
+        output.output = appendToolOutputSection(
           output.output,
           "[Browser MCP] Connection restored. Continuing without extra retry delay.",
         )

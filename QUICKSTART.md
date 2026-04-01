@@ -41,7 +41,7 @@ cat > opencode.json << 'EOF'
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
+      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
       "enabled": true
     }
   }
@@ -54,6 +54,8 @@ EOF
 - `"mcp": { "browsermcp": ... }` - Configures Browser MCP server (required for browser control)
 
 Both are needed! The plugin enhances the MCP tools, but the MCP server does the actual browser automation.
+
+The pinned Browser MCP version avoids the extra `@latest` lookup on startup and makes launches more predictable.
 
 ### Alternative: Local Installation (for development)
 
@@ -102,7 +104,7 @@ Navigate directly to https://news.ycombinator.com and extract the titles of the 
 ### "MCP server not found"
 ```bash
 # Test if npx can run the MCP server
-npx -y @browsermcp/mcp@latest --version
+npx -y @browsermcp/mcp@0.1.3 --version
 ```
 
 ### "Plugin not loaded"

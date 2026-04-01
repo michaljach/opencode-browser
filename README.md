@@ -64,7 +64,7 @@ Add this configuration to your `opencode.json`:
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
+      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
       "enabled": true
     }
   }
@@ -76,6 +76,8 @@ This configuration does two things:
 2. **Configures Browser MCP** - Sets up the MCP server that actually controls the browser
 
 That's it! No manual file copying required. OpenCode handles everything automatically.
+
+The generated command pins the Browser MCP package version to avoid the extra `@latest` resolution step on startup and keep launches reproducible.
 
 If you prefer to preview the generated config without writing it yet:
 
@@ -113,7 +115,7 @@ The minimal configuration requires only the MCP server setup:
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
+      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
       "enabled": true
     }
   }
@@ -130,7 +132,7 @@ For more control, you can disable Browser MCP tools globally and enable them per
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
+      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
       "enabled": true
     }
   },
@@ -166,7 +168,7 @@ If you need to pass environment variables to the Browser MCP server:
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
+      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
       "enabled": true,
       "environment": {
         "BROWSER_MCP_DEBUG": "true"

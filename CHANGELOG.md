@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-04-01
+
+### Changed
+- Tightened Browser MCP connection post-processing to avoid stringifying large successful tool payloads and to annotate structured error output safely
+- Made Browser MCP tool performance hints apply to both `browsermcp_*` and `browsermcp_browser_*` tool IDs
+- Pinned the generated Browser MCP server command to `@browsermcp/mcp@0.1.3` and upgraded legacy `@latest` configs when rerunning `opencode-browser init`
+
+### Fixed
+- Avoided runtime issues when Browser MCP tools return structured objects instead of string output
+- Reduced false-positive Browser MCP disconnect detection from unrelated successful tool payload content
+
 ## [1.2.1] - 2026-03-25
 
 ### Added
@@ -68,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tool execution logging
 - Event handling
 
+[1.2.2]: https://github.com/michaljach/opencode-browser/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/michaljach/opencode-browser/compare/v1.2.0...v1.2.1
 [1.1.0]: https://github.com/michaljach/opencode-browser/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/michaljach/opencode-browser/compare/v1.0.1...v1.0.2

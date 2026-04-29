@@ -208,7 +208,12 @@ export const BrowserMCPPlugin: Plugin = async () => {
 
   return {
     "experimental.chat.system.transform": async (_input, output) => {
-      if (!output.system.includes(browserSpeedGuidance)) {
+      const last = output.system.length - 1
+      if (last >= 0) {
+        if (!output.system[last].includes(browserSpeedGuidance)) {
+          output.system[last] = appendSection(output.system[last], browserSpeedGuidance)
+        }
+      } else {
         output.system.push(browserSpeedGuidance)
       }
     },

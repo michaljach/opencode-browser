@@ -272,6 +272,17 @@ export const BrowserMCPPlugin: Plugin = async () => {
       if (event.type === "session.deleted") {
         browserSessions.delete(sessionID)
         connectionStates.delete(sessionID)
+        return
+      }
+
+      if (event.type === "session.idle") {
+        browserSessions.delete(sessionID)
+        connectionStates.delete(sessionID)
+        return
+      }
+
+      if (event.type === "session.compacted") {
+        browserSessions.delete(sessionID)
       }
     },
   }

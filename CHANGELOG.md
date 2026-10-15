@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-15
+
 ### Added
 - **OpenCode 2 support**: the package now default-exports a V2 plugin definition (`id` + `setup`) alongside the existing V1 `server()` function, so one package works on OpenCode 1.18.29+ and OpenCode 2
 - V2 port of every browser guidance hook: session system guidance, tool performance hints, connection recovery hints, compaction context, and session cleanup via `ctx.event.subscribe()`

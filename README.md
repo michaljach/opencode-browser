@@ -51,7 +51,13 @@ For a global setup instead of a project-local one:
 npx opencode-browser init --global
 ```
 
-Create or update your `opencode.json` configuration file. You can create this file in one of two locations:
+If you prefer to preview the generated config without writing it yet:
+
+```bash
+npx opencode-browser init --print
+```
+
+Or configure it by hand. Create or update your `opencode.json` configuration file. You can create this file in one of two locations:
 
 - **Global configuration** (applies to all projects): `~/.config/opencode/opencode.json`
 - **Project-specific configuration** (applies to current project only): `./opencode.json` (in your project root)
@@ -106,23 +112,28 @@ To use the native V2 configuration shape, move the entry from `plugin` to `plugi
 
 No runtime dependencies are required: the plugin's imports of the OpenCode plugin type packages are type-only, so it loads under both APIs without installing `@opencode/plugin` or `@opencode-ai/plugin` into the plugin folder.
 
-If you prefer to preview the generated config without writing it yet:
-
-```bash
-npx opencode-browser init --print
-```
+If OpenCode 2 reports `Plugin must export a default definition with an id and an effect or setup function`, you are running a version older than 1.3.0. Update the plugin (`opencode plugin update`, or clear OpenCode's package cache) and restart.
 
 #### Alternative: Install Locally (for development/testing)
 
 If you want to modify the plugin or test changes:
 
-**For global installation:**
+**OpenCode 2:** point the config at your clone. The path must be the package directory, not `src/index.ts`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["file:///absolute/path/to/opencode-browser"]
+}
+```
+
+**OpenCode 1, global installation:**
 ```bash
 mkdir -p ~/.config/opencode/plugins
 cp src/index.ts ~/.config/opencode/plugins/browser-mcp.ts
 ```
 
-**For project-specific installation:**
+**OpenCode 1, project-specific installation:**
 ```bash
 mkdir -p .opencode/plugins
 cp src/index.ts .opencode/plugins/browser-mcp.ts
@@ -320,10 +331,11 @@ The plugin will display messages like:
 
 ### Plugin Not Loading
 
-1. **Check file location**: Ensure the plugin file is in the correct directory
-2. **Check file name**: Plugin files should end in `.ts` or `.js`
-3. **Check syntax**: Ensure the TypeScript/JavaScript syntax is valid
-4. **Check logs**: Look for plugin initialization messages in OpenCode output
+1. **Check the version**: OpenCode 2 needs `opencode-browser` 1.3.0 or newer
+2. **Check file location**: Ensure the plugin file is in the correct directory. On OpenCode 2, a `file://` plugin path must point to the package directory
+3. **Check file name**: Plugin files should end in `.ts` or `.js`
+4. **Check syntax**: Ensure the TypeScript/JavaScript syntax is valid
+5. **Check logs**: Look for plugin initialization messages in OpenCode output
 
 ### Tools Not Available
 
@@ -336,7 +348,10 @@ The plugin will display messages like:
 Enable debug logging by modifying the plugin or checking OpenCode logs:
 
 ```bash
-# Check OpenCode logs
+# OpenCode 2: print server logs while running a prompt
+opencode run --standalone --print-logs --log-level debug "your prompt"
+
+# OpenCode 1
 opencode --verbose
 ```
 
@@ -348,17 +363,23 @@ If you want to modify the plugin:
 
 1. Clone the repository
 2. Make your changes to `src/index.ts`
-3. Test locally by copying to your OpenCode plugin directory
-4. Submit a PR if you'd like to contribute!
+3. Run `npm run typecheck` and `npm test` (covers both the OpenCode 1 and OpenCode 2 entrypoints)
+4. Test locally with a `file://` plugin path (see [Install Locally](#alternative-install-locally-for-developmenttesting))
+5. Submit a PR if you'd like to contribute!
 
 ### Plugin Architecture
 
-The plugin uses OpenCode's plugin system hooks:
+The package default-exports one definition with two entrypoints that share the same state and guidance text: `id` + `setup()` for OpenCode 2, and `server()` for OpenCode 1.
 
-- `experimental.chat.system.transform`: Inject speed-oriented browser guidance
-- `tool.definition`: Add performance hints to Browser MCP tools
-- `tool.execute.after`: Post-process browser tool results
-- `experimental.session.compacting`: Preserve browser context
+| Purpose | OpenCode 1 hook | OpenCode 2 API |
+| --- | --- | --- |
+| Inject speed-oriented browser guidance | `experimental.chat.system.transform` | `ctx.session.hook("context")` |
+| Add performance hints to Browser MCP tools | `tool.definition` | `ctx.tool.transform` |
+| Post-process browser tool results | `tool.execute.after` | `ctx.tool.hook("execute.after")` |
+| Preserve browser context | `experimental.session.compacting` | `ctx.session.hook("compaction")` |
+| Clean up session state | `event` | `ctx.event.subscribe()` |
+
+On OpenCode 2, browser tools called from Code Mode are reported on the `execute` result's nested `toolCalls`, which the plugin also reads so connection recovery hints still work.
 
 ## Contributing
 

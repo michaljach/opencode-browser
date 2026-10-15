@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2026-10-15
 
 ### Added
-- **OpenCode 2 support**: the package now default-exports a V2 plugin definition (`id` + `setup`) alongside the existing V1 `server()` function, so one package works on OpenCode 1.18.29+ and OpenCode 2
+- **OpenCode 2 support**: the package now default-exports a V2 plugin definition (`id` + `setup`) alongside the existing V1 `server()` function, so one package works on OpenCode 1.18.29+ and OpenCode 2 ([#5](https://github.com/michaljach/opencode-browser/pull/5), thanks @daropotter)
 - V2 port of every browser guidance hook: session system guidance, tool performance hints, connection recovery hints, compaction context, and session cleanup via `ctx.event.subscribe()`
 - Connection recovery also follows browser tools invoked through Code Mode by reading the nested `toolCalls` metadata on `execute` results
 - Recognize "No connection to browser extension" as a connection failure so the recovery hint can surface for the current Browser MCP error wording
@@ -98,6 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tool execution logging
 - Event handling
 
+[Unreleased]: https://github.com/michaljach/opencode-browser/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/michaljach/opencode-browser/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/michaljach/opencode-browser/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/michaljach/opencode-browser/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/michaljach/opencode-browser/compare/v1.2.0...v1.2.1

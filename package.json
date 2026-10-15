@@ -4,6 +4,9 @@
   "description": "OpenCode plugin that integrates Browser MCP for browser automation",
   "type": "module",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "bin": {
     "opencode-browser": "bin/opencode-browser.js"
   },
@@ -39,7 +42,18 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx test/plugin.test.ts"
+  },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.18.32",
+    "@opencode/plugin": "^2.0.18",
+    "@types/node": "^24.12.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.8.2"
   }
 }

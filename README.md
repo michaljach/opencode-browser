@@ -2,6 +2,8 @@
 
 An OpenCode plugin that integrates [Browser MCP](https://browsermcp.io) to enable browser automation capabilities within OpenCode. This plugin allows the AI to control a browser, navigate websites, fill forms, click elements, and perform other browser automation tasks.
 
+Works with both **OpenCode 1** (1.18.29+) and **OpenCode 2**.
+
 ## Demo
 
 ![Demo](assets/demo.gif)
@@ -9,6 +11,7 @@ An OpenCode plugin that integrates [Browser MCP](https://browsermcp.io) to enabl
 ## Features
 
 - Full browser automation support through Browser MCP
+- **OpenCode 1 and 2 support** from one package
 - **Speed-oriented browser guidance** injected into the model prompt
 - **Tool-specific performance hints** for expensive browser actions
 - **Fast retry behavior** with no artificial reconnect backoff in the plugin
@@ -21,7 +24,7 @@ An OpenCode plugin that integrates [Browser MCP](https://browsermcp.io) to enabl
 Before using this plugin, you need:
 
 1. **Node.js** installed on your system
-2. **OpenCode** installed and configured
+2. **OpenCode 1.18.29+ or OpenCode 2** installed and configured
 3. **Browser MCP extension** installed in your browser (Chrome/Edge)
 
 ## Installation
@@ -78,6 +81,30 @@ This configuration does two things:
 That's it! No manual file copying required. OpenCode handles everything automatically.
 
 The generated command pins the Browser MCP package version to avoid the extra `@latest` resolution step on startup and keep launches reproducible.
+
+### OpenCode 2
+
+The plugin ships a single package that supports both OpenCode 1 and OpenCode 2. OpenCode 2 reads the plugin's V2 definition and registers the same guidance through its session, tool, and event APIs; existing `plugin` configuration keeps working because OpenCode 2 normalizes V1 configuration.
+
+To use the native V2 configuration shape, move the entry from `plugin` to `plugins` and use the V2 MCP shape:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["opencode-browser"],
+  "mcp": {
+    "servers": {
+      "browsermcp": {
+        "type": "local",
+        "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+        "disabled": false
+      }
+    }
+  }
+}
+```
+
+No runtime dependencies are required: the plugin's imports of the OpenCode plugin type packages are type-only, so it loads under both APIs without installing `@opencode/plugin` or `@opencode-ai/plugin` into the plugin folder.
 
 If you prefer to preview the generated config without writing it yet:
 

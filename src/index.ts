@@ -1,4 +1,6 @@
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Plugin as PluginDefinition } from "@opencode/plugin/promise/plugin"
+import type { Result as ToolResult } from "@opencode/plugin/promise/tool"
+import type { Plugin as PluginV1 } from "@opencode-ai/plugin"
 
 interface ConnectionState {
   isConnected: boolean
@@ -6,7 +8,12 @@ interface ConnectionState {
   failureCount: number
 }
 
+const PLUGIN_ID = "opencode-browser"
+
 const BROWSER_TOOL_PREFIX = "browsermcp_"
+
+/** Code Mode reports browser tools with a dotted namespace instead of an underscore. */
+const CODEMODE_BROWSER_TOOL_PREFIX = "browsermcp."
 
 const browserSpeedGuidance = `When using Browser MCP, optimize for speed:
 - Prefer direct URL navigation over click-through flows when the destination is known.
@@ -47,13 +54,23 @@ const connectionErrorPatterns = [
   /connection refused/i,
   /failed to connect/i,
   /could not connect/i,
+  /no connection to .*browser/i,
   /browser\s*mcp.*(?:disconnected|unavailable|not connected)/i,
   /extension.*(?:disabled|disconnected|not connected|unavailable)/i,
   /websocket.*(?:closed|failed)/i,
   /timed out while connecting/i,
 ]
 
+const CONNECTION_UNAVAILABLE_HINT =
+  "[Browser MCP] The browser connection looks unavailable. Re-enable the Browser MCP extension or browser, then retry. The plugin skips delayed backoff so the next attempt can run immediately."
+
+const CONNECTION_RESTORED_HINT =
+  "[Browser MCP] Connection restored. Continuing without extra retry delay."
+
 const isBrowserTool = (toolID: string): boolean => toolID.startsWith(BROWSER_TOOL_PREFIX)
+
+const isCodeModeBrowserTool = (toolID: string): boolean =>
+  toolID.startsWith(CODEMODE_BROWSER_TOOL_PREFIX) || isBrowserTool(toolID)
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -77,9 +94,9 @@ const appendSection = (base: string, section: string): string => {
   return `${base.trimEnd()}\n\n${trimmedSection}`
 }
 
-const appendToolOutputSection = (value: unknown, section: string): unknown => {
+const appendToolOutputSection = <Value>(value: Value, section: string): Value => {
   if (typeof value === "string") {
-    return appendSection(value, section)
+    return appendSection(value, section) as Value
   }
 
   if (!isRecord(value)) {
@@ -91,7 +108,7 @@ const appendToolOutputSection = (value: unknown, section: string): unknown => {
       return {
         ...value,
         [field]: appendSection(value[field], section),
-      }
+      } as Value
     }
   }
 
@@ -139,11 +156,17 @@ const getConnectionErrorText = (value: unknown): string | undefined => {
     return value.stderr
   }
 
+  // Tool results may carry their text payload under `output`, either as the
+  // plain output string (the V1 hook's shape) or as an error report.
+  if (typeof value.output === "string") {
+    return value.output
+  }
+
   if (!getFailureFlag(value)) {
     return undefined
   }
 
-  for (const field of ["message", "details"] as const) {
+  for (const field of ["message", "details", "output"] as const) {
     if (typeof value[field] === "string") {
       return value[field]
     }
@@ -172,7 +195,78 @@ const getToolHint = (toolID: string): string => {
   return "Prefer the smallest action that advances the task, and avoid redundant browser calls when the current page state is already known."
 }
 
-export const BrowserMCPPlugin: Plugin = async () => {
+/** Collects the human-readable text a tool result carries, across both result shapes. */
+const getResultText = (result: ToolResult): string => {
+  const chunks: string[] = []
+
+  const push = (value: unknown) => {
+    if (typeof value === "string" && value) {
+      chunks.push(value)
+    }
+  }
+
+  const { content } = result
+
+  if (typeof content === "string") {
+    push(content)
+  } else if (Array.isArray(content)) {
+    for (const part of content) {
+      if (part.type === "text") {
+        push(part.text)
+      }
+    }
+  }
+
+  push(result.output)
+
+  if (isRecord(result.output)) {
+    push(result.output.output)
+    push(result.output.error)
+    push(result.output.message)
+  }
+
+  return chunks.join("\n")
+}
+
+interface CodeModeToolCall {
+  tool: string
+  status?: string
+}
+
+/**
+ * Code Mode reports the tools a script invoked on the result metadata, using
+ * `namespace.tool` names such as `browsermcp.browser_navigate`.
+ */
+const getCodeModeToolCalls = (result: ToolResult): CodeModeToolCall[] => {
+  const source = isRecord(result.metadata)
+    ? result.metadata
+    : isRecord(result.output)
+      ? result.output
+      : undefined
+  const calls = source?.toolCalls
+
+  if (!Array.isArray(calls)) {
+    return []
+  }
+
+  return calls.flatMap((call) => {
+    if (!isRecord(call) || typeof call.tool !== "string") {
+      return []
+    }
+
+    return [{ tool: call.tool, status: typeof call.status === "string" ? call.status : undefined }]
+  })
+}
+
+interface SessionState {
+  browserSessions: Set<string>
+  connectionStates: Map<string, ConnectionState>
+  getConnectionState: (sessionID: string) => ConnectionState
+  markConnectionFailed: (sessionID: string, error: unknown) => void
+  resetConnectionState: (sessionID: string) => void
+}
+
+const createSessionState = (): SessionState => {
   const browserSessions = new Set<string>()
   const connectionStates = new Map<string, ConnectionState>()
 
@@ -206,6 +300,83 @@ export const BrowserMCPPlugin: Plugin = async () => {
     connectionState.lastError = undefined
   }
 
+  return { browserSessions, connectionStates, getConnectionState, markConnectionFailed, resetConnectionState }
+}
+
+/**
+ * Records a connection failure and returns the guidance section that should be
+ * surfaced to the model.
+ */
+const onConnectionError = (state: SessionState, sessionID: string, value: unknown): string => {
+  state.markConnectionFailed(sessionID, value)
+  const connectionState = state.getConnectionState(sessionID)
+
+  return connectionState.failureCount === 1
+    ? CONNECTION_UNAVAILABLE_HINT
+    : `[Browser MCP] Browser connection is still unavailable (failure ${connectionState.failureCount}). Retry as soon as the extension is ready.`
+}
+
+/**
+ * Returns the recovery guidance section when a previously failing connection
+ * looks healthy again, or undefined when nothing changed.
+ */
+const onConnectionRestored = (state: SessionState, sessionID: string): string | undefined => {
+  if (state.getConnectionState(sessionID).isConnected) {
+    return undefined
+  }
+
+  state.resetConnectionState(sessionID)
+  return CONNECTION_RESTORED_HINT
+}
+
+/**
+ * A completed result can report a connection failure either through
+ * `output` or through text carried in `content`.
+ */
+const resultHasConnectionError = (result: ToolResult): boolean => {
+  if (isConnectionError(result.output)) {
+    return true
+  }
+
+  const { content } = result
+
+  if (content === undefined) {
+    return false
+  }
+
+  if (typeof content === "string") {
+    return isConnectionError(content)
+  }
+
+  return content.some((part) => part.type === "text" && isConnectionError(part.text))
+}
+
+const appendResultSection = (result: ToolResult, section: string): ToolResult => {
+  const { content } = result
+
+  if (content === undefined) {
+    return { ...result, content: section }
+  }
+
+  if (typeof content === "string") {
+    return { ...result, content: appendSection(content, section) }
+  }
+
+  const alreadyPresent = content.some((part) => part.type === "text" && part.text.includes(section))
+
+  if (alreadyPresent) {
+    return result
+  }
+
+  return { ...result, content: [...content, { type: "text", text: section }] }
+}
+
+/**
+ * V1 implementation, used by OpenCode 1 through the `server()` entrypoint.
+ */
+const BrowserMCPPluginV1: PluginV1 = async () => {
+  const state = createSessionState()
+
   return {
     "experimental.chat.system.transform": async (_input, output) => {
       const last = output.system.length - 1
@@ -231,38 +402,29 @@ export const BrowserMCPPlugin: Plugin = async () => {
         return
       }
 
-      browserSessions.add(input.sessionID)
-      const connectionState = getConnectionState(input.sessionID)
+      state.browserSessions.add(input.sessionID)
 
       if (isConnectionError(output.output)) {
-        markConnectionFailed(input.sessionID, output.output)
-
-        const connectionHint = connectionState.failureCount === 1
-          ? "[Browser MCP] The browser connection looks unavailable. Re-enable the Browser MCP extension or browser, then retry. The plugin skips delayed backoff so the next attempt can run immediately."
-          : `[Browser MCP] Browser connection is still unavailable (failure ${connectionState.failureCount}). Retry as soon as the extension is ready.`
-
-        output.output = appendToolOutputSection(output.output, connectionHint)
+        output.output = appendToolOutputSection(output.output, onConnectionError(state, input.sessionID, output.output))
         return
       }
 
-      if (!connectionState.isConnected) {
-        resetConnectionState(input.sessionID)
-        output.output = appendToolOutputSection(
-          output.output,
-          "[Browser MCP] Connection restored. Continuing without extra retry delay.",
-        )
+      const restored = onConnectionRestored(state, input.sessionID)
+
+      if (restored) {
+        output.output = appendToolOutputSection(output.output, restored)
       }
     },
 
     "experimental.session.compacting": async (input, output) => {
-      if (browserSessions.has(input.sessionID)) {
+      if (state.browserSessions.has(input.sessionID)) {
         output.context.push(browserCompactionContext)
       }
     },
 
     event: async ({ event }) => {
-      const sessionID = typeof (event as { sessionID?: unknown }).sessionID === "string"
-        ? (event as { sessionID: string }).sessionID
+      const sessionID = typeof (event as unknown as { sessionID?: unknown }).sessionID === "string"
+        ? (event as unknown as { sessionID: string }).sessionID
         : undefined
 
       if (!sessionID) {
@@ -270,11 +432,170 @@ export const BrowserMCPPlugin: Plugin = async () => {
       }
 
       if (event.type === "session.deleted") {
-        browserSessions.delete(sessionID)
-        connectionStates.delete(sessionID)
+        state.browserSessions.delete(sessionID)
+        state.connectionStates.delete(sessionID)
       }
     },
   }
 }
 
-export default BrowserMCPPlugin
+/**
+ * V2 implementation. Registers the same browser guidance through the V2
+ * session, tool, and event domains.
+ */
+const BrowserMCPPluginV2: PluginDefinition = {
+  id: PLUGIN_ID,
+  async setup(ctx) {
+    const state = createSessionState()
+
+    await ctx.session.hook("context", (event) => {
+      const last = event.system.length - 1
+
+      if (last >= 0) {
+        const part = event.system[last]
+
+        if (part.type === "text" && !part.text.includes(browserSpeedGuidance)) {
+          event.system[last] = { ...part, text: appendSection(part.text, browserSpeedGuidance) }
+        }
+      } else {
+        event.system.push({ type: "text", text: browserSpeedGuidance })
+      }
+    })
+
+    await ctx.tool.transform((editor) => {
+      for (const tool of editor.list()) {
+        if (!isBrowserTool(tool.id)) {
+          continue
+        }
+
+        editor.update(tool.id, (definition) => {
+          definition.description = appendSection(definition.description, `Performance: ${getToolHint(tool.id)}`)
+        })
+      }
+    })
+
+    await ctx.tool.hook("execute.after", (event) => {
+      // A browser tool invoked directly (the V1-style naming).
+      if (isBrowserTool(event.tool)) {
+        state.browserSessions.add(event.sessionID)
+
+        if (event.status === "error") {
+          if (!isConnectionError(event.error.message)) {
+            return
+          }
+
+          const section = onConnectionError(state, event.sessionID, event.error.message)
+
+          // Tool.Error exposes readonly fields, but the runtime surfaces the
+          // updated message to the model without reconstructing the error.
+          const mutableError = event.error as unknown as { message: string }
+          mutableError.message = appendSection(mutableError.message, section)
+
+          return
+        }
+
+        if (resultHasConnectionError(event.result)) {
+          const section = onConnectionError(state, event.sessionID, event.result.output ?? event.result.content)
+          event.result = appendResultSection(event.result, section)
+          return
+        }
+
+        const restored = onConnectionRestored(state, event.sessionID)
+
+        if (restored) {
+          event.result = appendResultSection(event.result, restored)
+        }
+
+        return
+      }
+
+      // Code Mode runs browser tools inside the `execute` tool. The nested
+      // calls are reported on the execute result rather than as their own
+      // events, so recover the browser context from there.
+      if (event.tool !== "execute" || event.status !== "completed") {
+        return
+      }
+
+      const calls = getCodeModeToolCalls(event.result).filter((call) => isCodeModeBrowserTool(call.tool))
+
+      if (calls.length === 0) {
+        return
+      }
+
+      state.browserSessions.add(event.sessionID)
+
+      const text = getResultText(event.result)
+      const lastCall = calls[calls.length - 1]
+      const lastCallFailed = lastCall?.status === "error" && isConnectionError(text)
+
+      if (lastCallFailed) {
+        // The same failure may have been recorded already by a direct browser
+        // tool event for this call; only count it once.
+        const current = state.getConnectionState(event.sessionID)
+        const alreadyRecorded = !current.isConnected &&
+          typeof current.lastError === "string" &&
+          current.lastError.length > 0 &&
+          text.includes(current.lastError)
+
+        if (!alreadyRecorded) {
+          event.result = appendResultSection(event.result, onConnectionError(state, event.sessionID, text))
+        }
+
+        return
+      }
+
+      // The last browser call succeeded. If an earlier call had marked the
+      // connection as failed, this attempt proves it is working again.
+      const restored = onConnectionRestored(state, event.sessionID)
+
+      if (restored) {
+        event.result = appendResultSection(event.result, restored)
+      }
+    })
+
+    await ctx.session.hook("compaction", (event) => {
+      if (!state.browserSessions.has(event.sessionID)) {
+        return
+      }
+
+      const alreadyPresent = event.system.some(
+        (part) => part.type === "text" && part.text.includes(browserCompactionContext),
+      )
+
+      if (!alreadyPresent) {
+        event.system.push({ type: "text", text: browserCompactionContext })
+      }
+    })
+
+    const controller = new AbortController()
+
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          if (event.type !== "session.deleted") {
+            continue
+          }
+
+          const sessionID = event.data.sessionID
+          state.browserSessions.delete(sessionID)
+          state.connectionStates.delete(sessionID)
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error(`[${PLUGIN_ID}] event subscription failed`, error)
+        }
+      }
+    })()
+
+    return () => controller.abort()
+  },
+}
+
+/**
+ * Dual entrypoint: OpenCode 2 reads `id` and `setup()`, OpenCode 1.18.29+
+ * calls `server()`.
+ */
+export default {
+  ...BrowserMCPPluginV2,
+  server: BrowserMCPPluginV1,
+}

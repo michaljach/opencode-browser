@@ -10,3 +10,5 @@ coverage/
 .vscode/
 .idea/
 opencode.json
+
+package-lock.json

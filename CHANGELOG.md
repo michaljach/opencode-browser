@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **OpenCode 2 support**: the package now default-exports a V2 plugin definition (`id` + `setup`) alongside the existing V1 `server()` function, so one package works on OpenCode 1.18.29+ and OpenCode 2
+- V2 port of every browser guidance hook: session system guidance, tool performance hints, connection recovery hints, compaction context, and session cleanup via `ctx.event.subscribe()`
+- Connection recovery also follows browser tools invoked through Code Mode by reading the nested `toolCalls` metadata on `execute` results
+- Recognize "No connection to browser extension" as a connection failure so the recovery hint can surface for the current Browser MCP error wording
+- Test suite (`npm test`) covering the V2 and V1 entrypoints
+
+### Changed
+- Plugin API imports are type-only, so the plugin loads without installing `@opencode/plugin` or `@opencode-ai/plugin` at runtime
+
 ## [1.2.3] - 2026-04-29
 
 ### Fixed

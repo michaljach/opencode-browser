@@ -83,7 +83,7 @@ This document describes the architecture and data flow of the OpenCode Browser M
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │              Browser MCP Server Process                          │
-│               (npx @browsermcp/mcp@0.1.3)                        │
+│               (npx @browsermcp/mcp@latest)                        │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │  • Receives tool invocations via stdin                   │  │
 │  │  • Translates to browser automation commands             │  │
@@ -270,7 +270,7 @@ OpenCode loads configuration
 Parses MCP server configuration:
     {
       "browsermcp": {
-        "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"]
+        "command": ["npx", "-y", "@browsermcp/mcp@latest"]
       }
     }
     ↓

@@ -5,7 +5,7 @@ Get up and running with the OpenCode Browser MCP Plugin in 5 minutes.
 ## Prerequisites
 
 - OpenCode installed (`npm install -g opencode-ai`)
-- Node.js v18+ installed
+- Node.js 20+ installed (required by Browser MCP)
 - Chrome or Edge browser
 
 ## Step 1: Install Browser MCP Extension (2 minutes)
@@ -41,7 +41,7 @@ cat > opencode.json << 'EOF'
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
       "enabled": true
     }
   }
@@ -55,7 +55,7 @@ EOF
 
 Both are needed! The plugin enhances the MCP tools, but the MCP server does the actual browser automation.
 
-The pinned Browser MCP version avoids the extra `@latest` lookup on startup and makes launches more predictable.
+The generated command uses `@latest` because the Browser MCP server and browser extension are versioned together. If you need a fixed version, pin a tested 2.x release explicitly.
 
 ### Alternative: Local Installation (for development)
 
@@ -104,7 +104,7 @@ Navigate directly to https://news.ycombinator.com and extract the titles of the 
 ### "MCP server not found"
 ```bash
 # Test if npx can run the MCP server
-npx -y @browsermcp/mcp@0.1.3 --version
+npx -y @browsermcp/mcp@latest --version
 ```
 
 ### "Plugin not loaded"

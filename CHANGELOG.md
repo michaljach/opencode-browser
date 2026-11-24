@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-24
+
+### Fixed
+- `opencode-browser init` now generates `@browsermcp/mcp@latest` and upgrades only the incompatible `0.1.3` pin; existing `@latest` and explicit 2.x pins are left unchanged
+
+### Changed
+- Requires Node.js 20+ to match Browser MCP
+
 ## [1.3.0] - 2026-10-15
 
 ### Added

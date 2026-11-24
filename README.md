@@ -23,7 +23,7 @@ Works with both **OpenCode 1** (1.18.29+) and **OpenCode 2**.
 
 Before using this plugin, you need:
 
-1. **Node.js** installed on your system
+1. **Node.js 20+** installed on your system (required by Browser MCP)
 2. **OpenCode 1.18.29+ or OpenCode 2** installed and configured
 3. **Browser MCP extension** installed in your browser (Chrome/Edge)
 
@@ -73,7 +73,7 @@ Add this configuration to your `opencode.json`:
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
       "enabled": true
     }
   }
@@ -86,7 +86,7 @@ This configuration does two things:
 
 That's it! No manual file copying required. OpenCode handles everything automatically.
 
-The generated command pins the Browser MCP package version to avoid the extra `@latest` resolution step on startup and keep launches reproducible.
+The generated command uses `@latest` because the Browser MCP server and browser extension are versioned together. An older server can pair with a newer extension but fail once a tool is called; `@latest` keeps the two compatible. If you need a fixed version, pin a tested 2.x release explicitly.
 
 ### OpenCode 2
 
@@ -102,7 +102,7 @@ To use the native V2 configuration shape, move the entry from `plugin` to `plugi
     "servers": {
       "browsermcp": {
         "type": "local",
-        "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+        "command": ["npx", "-y", "@browsermcp/mcp@latest"],
         "disabled": false
       }
     }
@@ -153,7 +153,7 @@ The minimal configuration requires only the MCP server setup:
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
       "enabled": true
     }
   }
@@ -170,7 +170,7 @@ For more control, you can disable Browser MCP tools globally and enable them per
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
       "enabled": true
     }
   },
@@ -206,7 +206,7 @@ If you need to pass environment variables to the Browser MCP server:
   "mcp": {
     "browsermcp": {
       "type": "local",
-      "command": ["npx", "-y", "@browsermcp/mcp@0.1.3"],
+      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
       "enabled": true,
       "environment": {
         "BROWSER_MCP_DEBUG": "true"

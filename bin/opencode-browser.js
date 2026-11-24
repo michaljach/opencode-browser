@@ -6,11 +6,11 @@ import { dirname, resolve } from "node:path"
 
 const schemaUrl = "https://opencode.ai/config.json"
 const pluginName = "opencode-browser"
-const browserMcpVersion = "0.1.3"
-const legacyBrowserMcpCommand = ["npx", "-y", "@browsermcp/mcp@latest"]
+const browserMcpCommand = ["npx", "-y", "@browsermcp/mcp@latest"]
+const deprecatedBrowserMcpCommand = ["npx", "-y", "@browsermcp/mcp@0.1.3"]
 const defaultBrowserMcpConfig = {
   type: "local",
-  command: ["npx", "-y", `@browsermcp/mcp@${browserMcpVersion}`],
+  command: [...browserMcpCommand],
   enabled: true,
 }
 
@@ -158,9 +158,9 @@ function mergeConfig(config) {
   if (browsermcp.command === undefined) {
     browsermcp.command = [...defaultBrowserMcpConfig.command]
     changes.push("set Browser MCP command")
-  } else if (isSameCommand(browsermcp.command, legacyBrowserMcpCommand)) {
+  } else if (isSameCommand(browsermcp.command, deprecatedBrowserMcpCommand)) {
     browsermcp.command = [...defaultBrowserMcpConfig.command]
-    changes.push("pinned Browser MCP command version")
+    changes.push("updated Browser MCP command to @latest")
   }
 
   if (browsermcp.enabled === undefined) {
